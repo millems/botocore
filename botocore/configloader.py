@@ -291,7 +291,7 @@ def raw_toml_parse(config_filename):
     """Parse a TOML config file and return the raw parsed contents.
     
     :param config_filename: The path to the TOML config file
-    :returns: A dict with the parsed TOML contents
+    :returns: A dict with the parsed TOML contents, normalized to match INI format
     :raises: ConfigNotFound, ConfigParseError
     """
     # Python 3.11+ has built-in tomllib
@@ -323,7 +323,33 @@ def raw_toml_parse(config_filename):
             path=_unicode_path(path), error=e
         ) from None
     
-    return config
+    return _normalize_toml_to_ini_types(config)
+
+
+def _normalize_toml_to_ini_types(config_dict):
+    """Convert TOML native types to match INI string format.
+    
+    :param config_dict: Dictionary with TOML native types
+    :returns: Dictionary with types normalized to match INI format
+    """
+    if not isinstance(config_dict, dict):
+        return config_dict
+    
+    normalized = {}
+    for key, value in config_dict.items():
+        if isinstance(value, bool):
+            normalized[key] = 'true' if value else 'false'
+        elif isinstance(value, (int, float)):
+            normalized[key] = str(value)
+        elif isinstance(value, list):
+            # Convert arrays to comma-separated strings
+            normalized[key] = ','.join(str(item) for item in value)
+        elif isinstance(value, dict):
+            normalized[key] = _normalize_toml_to_ini_types(value)
+        else:
+            normalized[key] = value
+    
+    return normalized
 
 
 def load_toml_config(config_filename):
@@ -348,7 +374,7 @@ def build_toml_profile_map(parsed_toml_config):
     - [sso-session.name] → sso_sessions['name'] 
     - [services.name] → services['name']
     
-    :param parsed_toml_config: Raw parsed TOML config dict
+    :param parsed_toml_config: Raw parsed TOML config dict (already normalized)
     :returns: Structured config dict matching INI format
     """
     profiles = {}
@@ -360,42 +386,21 @@ def build_toml_profile_map(parsed_toml_config):
         if key == 'profile':
             # Handle [profile] table with sub-tables
             for profile_name, profile_config in values.items():
-                profiles[profile_name] = _convert_toml_types(profile_config)
+                profiles[profile_name] = profile_config
         elif key == 'sso-session':
             # Handle [sso-session] table with sub-tables
             for session_name, session_config in values.items():
-                sso_sessions[session_name] = _convert_toml_types(session_config)
+                sso_sessions[session_name] = session_config
         elif key == 'services':
             # Handle [services] table with sub-tables
             for service_name, service_config in values.items():
-                services[service_name] = _convert_toml_types(service_config)
+                services[service_name] = service_config
         else:
             # Top-level sections (non-profile)
-            final_config[key] = _convert_toml_types(values)
+            final_config[key] = values
     
     final_config['profiles'] = profiles
     final_config['sso_sessions'] = sso_sessions
     final_config['services'] = services
     
     return final_config
-
-
-def _convert_toml_types(config_dict):
-    """Convert TOML native types to formats expected by existing code.
-    
-    Handles backward compatibility by preserving native types while
-    handling any special conversions needed.
-    
-    :param config_dict: Dictionary with TOML native types
-    :returns: Dictionary with converted types for backward compatibility
-    """
-    if not isinstance(config_dict, dict):
-        return config_dict
-    
-    converted = {}
-    for key, value in config_dict.items():
-        # For now, preserve all native types
-        # Future conversions can be added here as needed
-        converted[key] = value
-    
-    return converted

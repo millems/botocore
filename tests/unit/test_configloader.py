@@ -214,7 +214,7 @@ class TestConfigLoader(unittest.TestCase):
         return full_path
 
     def test_raw_toml_parse_valid_file(self):
-        # Test parsing a valid TOML file with native data types
+        # Test parsing a valid TOML file with normalized types
         toml_content = '''
 [profile.dev]
 region = "us-west-2"
@@ -233,7 +233,7 @@ use_fips = false
         
         result = raw_toml_parse(filename)
         
-        # Verify structure and data types
+        # Verify structure and normalized types (should match INI format)
         self.assertIn('profile', result)
         self.assertIn('dev', result['profile'])
         self.assertIn('prod', result['profile'])
@@ -241,12 +241,12 @@ use_fips = false
         dev_config = result['profile']['dev']
         self.assertEqual(dev_config['region'], 'us-west-2')
         self.assertEqual(dev_config['output'], 'json')
-        self.assertIs(dev_config['use_fips'], True)  # Native boolean
-        self.assertEqual(dev_config['timeout'], 30)  # Native integer
+        self.assertEqual(dev_config['use_fips'], 'true')  # Normalized to string
+        self.assertEqual(dev_config['timeout'], '30')     # Normalized to string
         
         prod_config = result['profile']['prod']
         self.assertEqual(prod_config['region'], 'us-east-1')
-        self.assertIs(prod_config['use_fips'], False)  # Native boolean
+        self.assertEqual(prod_config['use_fips'], 'false')  # Normalized to string
 
     def test_raw_toml_parse_file_not_found(self):
         # Test that ConfigNotFound is raised for non-existent files
@@ -305,7 +305,7 @@ endpoint_url = "https://localhost:8000"
         self.assertEqual(result['services']['my-service']['endpoint_url'], 'https://localhost:8000')
 
     def test_toml_data_type_preservation(self):
-        # Test that TOML native data types are preserved
+        # Test that TOML native data types are normalized to INI format
         toml_content = '''
 [profile.test]
 string_val = "hello"
@@ -322,24 +322,24 @@ array_val = ["a", "b", "c"]
         result = raw_toml_parse(filename)
         config = result['profile']['test']
         
-        # Verify data types are preserved
+        # Verify data types are normalized to match INI format
         self.assertIsInstance(config['string_val'], str)
         self.assertEqual(config['string_val'], 'hello')
         
-        self.assertIsInstance(config['int_val'], int)
-        self.assertEqual(config['int_val'], 42)
+        self.assertIsInstance(config['int_val'], str)  # Normalized to string
+        self.assertEqual(config['int_val'], '42')
         
-        self.assertIsInstance(config['float_val'], float)
-        self.assertEqual(config['float_val'], 3.14)
+        self.assertIsInstance(config['float_val'], str)  # Normalized to string
+        self.assertEqual(config['float_val'], '3.14')
         
-        self.assertIsInstance(config['bool_true'], bool)
-        self.assertIs(config['bool_true'], True)
+        self.assertIsInstance(config['bool_true'], str)  # Normalized to string
+        self.assertEqual(config['bool_true'], 'true')
         
-        self.assertIsInstance(config['bool_false'], bool)
-        self.assertIs(config['bool_false'], False)
+        self.assertIsInstance(config['bool_false'], str)  # Normalized to string
+        self.assertEqual(config['bool_false'], 'false')
         
-        self.assertIsInstance(config['array_val'], list)
-        self.assertEqual(config['array_val'], ['a', 'b', 'c'])
+        self.assertIsInstance(config['array_val'], str)  # Normalized to string
+        self.assertEqual(config['array_val'], 'a,b,c')
 
     def test_build_toml_profile_map_profile_sections(self):
         # Test profile section parsing with dot notation
@@ -495,6 +495,111 @@ array_val = ["a", "b", "c"]
         # Verify services structure
         self.assertIsInstance(result['services'], dict)
         self.assertEqual(set(result['services'].keys()), {'s3'})
+
+    def test_normalize_toml_to_ini_types_array_conversion(self):
+        # Test array to string conversion
+        config = {
+            'sigv4a_signing_region_set': ['us-east-1', 'us-west-2'],
+            'other_array': ['a', 'b', 'c']
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should convert arrays to comma-separated strings
+        self.assertEqual(result['sigv4a_signing_region_set'], 'us-east-1,us-west-2')
+        self.assertEqual(result['other_array'], 'a,b,c')
+
+    def test_normalize_toml_to_ini_types_boolean_conversion(self):
+        # Test that boolean types are converted to strings
+        config = {
+            'use_dualstack_endpoint': True,
+            'use_fips': False
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should convert booleans to string format
+        self.assertEqual(result['use_dualstack_endpoint'], 'true')
+        self.assertEqual(result['use_fips'], 'false')
+
+    def test_normalize_toml_to_ini_types_integer_conversion(self):
+        # Test that integer types are converted to strings
+        config = {
+            'duration_seconds': 3600,
+            'timeout': 30
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should convert integers to string format
+        self.assertEqual(result['duration_seconds'], '3600')
+        self.assertEqual(result['timeout'], '30')
+
+    def test_normalize_toml_to_ini_types_string_preservation(self):
+        # Test that string types are preserved
+        config = {
+            'region': 'us-west-2',
+            'output': 'json'
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should preserve string types
+        self.assertEqual(result['region'], 'us-west-2')
+        self.assertEqual(result['output'], 'json')
+
+    def test_normalize_toml_to_ini_types_nested_processing(self):
+        # Test that nested dictionaries are processed recursively
+        config = {
+            'profile': {
+                'dev': {
+                    'sigv4a_signing_region_set': ['us-east-1', 'us-west-2'],
+                    'use_fips': True,
+                    'timeout': 30,
+                    'region': 'us-west-2'
+                }
+            },
+            'services': {
+                's3': {
+                    'use_dualstack_endpoint': False
+                }
+            }
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should process nested dictionaries recursively
+        dev_profile = result['profile']['dev']
+        self.assertEqual(dev_profile['sigv4a_signing_region_set'], 'us-east-1,us-west-2')
+        self.assertEqual(dev_profile['use_fips'], 'true')
+        self.assertEqual(dev_profile['timeout'], '30')
+        self.assertEqual(dev_profile['region'], 'us-west-2')
+        
+        s3_service = result['services']['s3']
+        self.assertEqual(s3_service['use_dualstack_endpoint'], 'false')
+
+    def test_normalize_toml_to_ini_types_empty_array_handling(self):
+        # Test that empty arrays are converted to empty strings
+        config = {
+            'sigv4a_signing_region_set': []
+        }
+        
+        from botocore.configloader import _normalize_toml_to_ini_types
+        
+        result = _normalize_toml_to_ini_types(config)
+        
+        # Should convert empty array to empty string
+        self.assertEqual(result['sigv4a_signing_region_set'], '')
 
 
 if __name__ == "__main__":
