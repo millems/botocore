@@ -341,6 +341,161 @@ array_val = ["a", "b", "c"]
         self.assertIsInstance(config['array_val'], list)
         self.assertEqual(config['array_val'], ['a', 'b', 'c'])
 
+    def test_build_toml_profile_map_profile_sections(self):
+        # Test profile section parsing with dot notation
+        toml_config = {
+            'profile': {
+                'default': {
+                    'region': 'us-east-1',
+                    'output': 'json'
+                },
+                'dev': {
+                    'region': 'us-west-2',
+                    'use_fips': True
+                }
+            }
+        }
+        
+        from botocore.configloader import build_toml_profile_map
+        
+        result = build_toml_profile_map(toml_config)
+        
+        # Verify profiles structure
+        self.assertIn('profiles', result)
+        self.assertIn('default', result['profiles'])
+        self.assertIn('dev', result['profiles'])
+        
+        # Verify profile content
+        self.assertEqual(result['profiles']['default']['region'], 'us-east-1')
+        self.assertEqual(result['profiles']['default']['output'], 'json')
+        self.assertEqual(result['profiles']['dev']['region'], 'us-west-2')
+        self.assertIs(result['profiles']['dev']['use_fips'], True)
+
+    def test_build_toml_profile_map_sso_sessions(self):
+        # Test SSO session parsing
+        toml_config = {
+            'sso-session': {
+                'my-sso': {
+                    'sso_start_url': 'https://example.com',
+                    'sso_region': 'us-east-1'
+                },
+                'dev-sso': {
+                    'sso_start_url': 'https://dev.example.com'
+                }
+            }
+        }
+        
+        from botocore.configloader import build_toml_profile_map
+        
+        result = build_toml_profile_map(toml_config)
+        
+        # Verify sso_sessions structure
+        self.assertIn('sso_sessions', result)
+        self.assertIn('my-sso', result['sso_sessions'])
+        self.assertIn('dev-sso', result['sso_sessions'])
+        
+        # Verify sso session content
+        self.assertEqual(result['sso_sessions']['my-sso']['sso_start_url'], 'https://example.com')
+        self.assertEqual(result['sso_sessions']['my-sso']['sso_region'], 'us-east-1')
+        self.assertEqual(result['sso_sessions']['dev-sso']['sso_start_url'], 'https://dev.example.com')
+
+    def test_build_toml_profile_map_services(self):
+        # Test services section parsing
+        toml_config = {
+            'services': {
+                's3': {
+                    'endpoint_url': 'https://localhost:9000',
+                    'signature_version': 's3v4'
+                },
+                'dynamodb': {
+                    'endpoint_url': 'https://localhost:8000'
+                }
+            }
+        }
+        
+        from botocore.configloader import build_toml_profile_map
+        
+        result = build_toml_profile_map(toml_config)
+        
+        # Verify services structure
+        self.assertIn('services', result)
+        self.assertIn('s3', result['services'])
+        self.assertIn('dynamodb', result['services'])
+        
+        # Verify services content
+        self.assertEqual(result['services']['s3']['endpoint_url'], 'https://localhost:9000')
+        self.assertEqual(result['services']['s3']['signature_version'], 's3v4')
+        self.assertEqual(result['services']['dynamodb']['endpoint_url'], 'https://localhost:8000')
+
+    def test_build_toml_profile_map_top_level_preservation(self):
+        # Test that custom top-level sections are preserved
+        toml_config = {
+            'profile': {
+                'default': {'region': 'us-east-1'}
+            },
+            'custom_section': {
+                'custom_key': 'custom_value'
+            },
+            'another_section': {
+                'nested': {
+                    'key': 'value'
+                }
+            }
+        }
+        
+        from botocore.configloader import build_toml_profile_map
+        
+        result = build_toml_profile_map(toml_config)
+        
+        # Verify standard sections
+        self.assertIn('profiles', result)
+        self.assertIn('sso_sessions', result)
+        self.assertIn('services', result)
+        
+        # Verify custom sections are preserved
+        self.assertIn('custom_section', result)
+        self.assertIn('another_section', result)
+        
+        # Verify custom section content
+        self.assertEqual(result['custom_section']['custom_key'], 'custom_value')
+        self.assertEqual(result['another_section']['nested']['key'], 'value')
+
+    def test_build_toml_profile_map_output_structure_compatibility(self):
+        # Test that output structure matches INI build_profile_map format
+        toml_config = {
+            'profile': {
+                'default': {'region': 'us-east-1'},
+                'dev': {'region': 'us-west-2'}
+            },
+            'sso-session': {
+                'my-session': {'sso_start_url': 'https://example.com'}
+            },
+            'services': {
+                's3': {'endpoint_url': 'https://localhost:9000'}
+            },
+            'custom': {'key': 'value'}
+        }
+        
+        from botocore.configloader import build_toml_profile_map
+        
+        result = build_toml_profile_map(toml_config)
+        
+        # Verify exact structure matches INI format
+        expected_keys = {'profiles', 'sso_sessions', 'services', 'custom'}
+        self.assertEqual(set(result.keys()), expected_keys)
+        
+        # Verify profiles structure
+        self.assertIsInstance(result['profiles'], dict)
+        self.assertEqual(set(result['profiles'].keys()), {'default', 'dev'})
+        
+        # Verify sso_sessions structure
+        self.assertIsInstance(result['sso_sessions'], dict)
+        self.assertEqual(set(result['sso_sessions'].keys()), {'my-session'})
+        
+        # Verify services structure
+        self.assertIsInstance(result['services'], dict)
+        self.assertEqual(set(result['services'].keys()), {'s3'})
+
 
 if __name__ == "__main__":
     unittest.main()
