@@ -206,6 +206,141 @@ class TestConfigLoader(unittest.TestCase):
             'https://localhost:8888/',
         )
 
+    def create_toml_config_file(self, filename, content):
+        """Helper method to create TOML config files for testing."""
+        full_path = os.path.join(self.tempdir, filename)
+        with open(full_path, 'w') as f:
+            f.write(content)
+        return full_path
+
+    def test_raw_toml_parse_valid_file(self):
+        # Test parsing a valid TOML file with native data types
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+output = "json"
+use_fips = true
+timeout = 30
+
+[profile.prod]
+region = "us-east-1"
+use_fips = false
+'''
+        filename = self.create_toml_config_file('test_config.toml', toml_content)
+        
+        # Import here to avoid import errors if tomllib not available
+        from botocore.configloader import raw_toml_parse
+        
+        result = raw_toml_parse(filename)
+        
+        # Verify structure and data types
+        self.assertIn('profile', result)
+        self.assertIn('dev', result['profile'])
+        self.assertIn('prod', result['profile'])
+        
+        dev_config = result['profile']['dev']
+        self.assertEqual(dev_config['region'], 'us-west-2')
+        self.assertEqual(dev_config['output'], 'json')
+        self.assertIs(dev_config['use_fips'], True)  # Native boolean
+        self.assertEqual(dev_config['timeout'], 30)  # Native integer
+        
+        prod_config = result['profile']['prod']
+        self.assertEqual(prod_config['region'], 'us-east-1')
+        self.assertIs(prod_config['use_fips'], False)  # Native boolean
+
+    def test_raw_toml_parse_file_not_found(self):
+        # Test that ConfigNotFound is raised for non-existent files
+        from botocore.configloader import raw_toml_parse
+        
+        with self.assertRaises(botocore.exceptions.ConfigNotFound):
+            raw_toml_parse('/path/to/nonexistent/file.toml')
+
+    def test_raw_toml_parse_syntax_error(self):
+        # Test that ConfigParseError is raised for malformed TOML
+        invalid_toml = '''
+[profile.dev
+region = "us-west-2"  # Missing closing bracket
+'''
+        filename = self.create_toml_config_file('invalid.toml', invalid_toml)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        with self.assertRaises(botocore.exceptions.ConfigParseError):
+            raw_toml_parse(filename)
+
+    def test_load_toml_config_structure(self):
+        # Test that load_toml_config returns proper structure
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+output = "json"
+
+[sso-session.my-session]
+sso_start_url = "https://example.com"
+
+[services.my-service]
+endpoint_url = "https://localhost:8000"
+'''
+        filename = self.create_toml_config_file('structured.toml', toml_content)
+        
+        from botocore.configloader import load_toml_config
+        
+        result = load_toml_config(filename)
+        
+        # Should have same structure as INI config
+        self.assertIn('profiles', result)
+        self.assertIn('sso_sessions', result)
+        self.assertIn('services', result)
+        
+        # Check profile mapping
+        self.assertIn('dev', result['profiles'])
+        self.assertEqual(result['profiles']['dev']['region'], 'us-west-2')
+        
+        # Check sso-session mapping
+        self.assertIn('my-session', result['sso_sessions'])
+        self.assertEqual(result['sso_sessions']['my-session']['sso_start_url'], 'https://example.com')
+        
+        # Check services mapping
+        self.assertIn('my-service', result['services'])
+        self.assertEqual(result['services']['my-service']['endpoint_url'], 'https://localhost:8000')
+
+    def test_toml_data_type_preservation(self):
+        # Test that TOML native data types are preserved
+        toml_content = '''
+[profile.test]
+string_val = "hello"
+int_val = 42
+float_val = 3.14
+bool_true = true
+bool_false = false
+array_val = ["a", "b", "c"]
+'''
+        filename = self.create_toml_config_file('types.toml', toml_content)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        result = raw_toml_parse(filename)
+        config = result['profile']['test']
+        
+        # Verify data types are preserved
+        self.assertIsInstance(config['string_val'], str)
+        self.assertEqual(config['string_val'], 'hello')
+        
+        self.assertIsInstance(config['int_val'], int)
+        self.assertEqual(config['int_val'], 42)
+        
+        self.assertIsInstance(config['float_val'], float)
+        self.assertEqual(config['float_val'], 3.14)
+        
+        self.assertIsInstance(config['bool_true'], bool)
+        self.assertIs(config['bool_true'], True)
+        
+        self.assertIsInstance(config['bool_false'], bool)
+        self.assertIs(config['bool_false'], False)
+        
+        self.assertIsInstance(config['array_val'], list)
+        self.assertEqual(config['array_val'], ['a', 'b', 'c'])
+
 
 if __name__ == "__main__":
     unittest.main()

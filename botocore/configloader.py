@@ -285,3 +285,117 @@ def build_profile_map(parsed_ini_config):
     final_config['sso_sessions'] = sso_sessions
     final_config['services'] = services
     return final_config
+
+
+def raw_toml_parse(config_filename):
+    """Parse a TOML config file and return the raw parsed contents.
+    
+    :param config_filename: The path to the TOML config file
+    :returns: A dict with the parsed TOML contents
+    :raises: ConfigNotFound, ConfigParseError
+    """
+    # Python 3.11+ has built-in tomllib
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        try:
+            import tomli as tomllib
+        except ImportError:
+            raise botocore.exceptions.ConfigParseError(
+                path=config_filename,
+                error="TOML support requires Python 3.11+ or tomli package"
+            )
+    
+    if config_filename is None:
+        raise botocore.exceptions.ConfigNotFound(path="None")
+    
+    path = os.path.expandvars(config_filename)
+    path = os.path.expanduser(path)
+    
+    if not os.path.isfile(path):
+        raise botocore.exceptions.ConfigNotFound(path=_unicode_path(path))
+    
+    try:
+        with open(path, 'rb') as f:
+            config = tomllib.load(f)
+    except Exception as e:
+        raise botocore.exceptions.ConfigParseError(
+            path=_unicode_path(path), error=e
+        ) from None
+    
+    return config
+
+
+def load_toml_config(config_filename):
+    """Parse a TOML config with profiles.
+    
+    This will parse a TOML config file and map top level profiles
+    into a top level "profiles" key, similar to load_config() for INI files.
+    
+    :param config_filename: The path to the TOML config file
+    :returns: A dict with the same structure as load_config()
+    :raises: ConfigNotFound, ConfigParseError
+    """
+    parsed = raw_toml_parse(config_filename)
+    return build_toml_profile_map(parsed)
+
+
+def build_toml_profile_map(parsed_toml_config):
+    """Convert parsed TOML config into the standard profile map structure.
+    
+    Handles TOML dot notation syntax:
+    - [profile.name] → profiles['name']
+    - [sso-session.name] → sso_sessions['name'] 
+    - [services.name] → services['name']
+    
+    :param parsed_toml_config: Raw parsed TOML config dict
+    :returns: Structured config dict matching INI format
+    """
+    profiles = {}
+    sso_sessions = {}
+    services = {}
+    final_config = {}
+    
+    for key, values in parsed_toml_config.items():
+        if key == 'profile':
+            # Handle [profile] table with sub-tables
+            for profile_name, profile_config in values.items():
+                profiles[profile_name] = _convert_toml_types(profile_config)
+        elif key == 'sso-session':
+            # Handle [sso-session] table with sub-tables
+            for session_name, session_config in values.items():
+                sso_sessions[session_name] = _convert_toml_types(session_config)
+        elif key == 'services':
+            # Handle [services] table with sub-tables
+            for service_name, service_config in values.items():
+                services[service_name] = _convert_toml_types(service_config)
+        else:
+            # Top-level sections (non-profile)
+            final_config[key] = _convert_toml_types(values)
+    
+    final_config['profiles'] = profiles
+    final_config['sso_sessions'] = sso_sessions
+    final_config['services'] = services
+    
+    return final_config
+
+
+def _convert_toml_types(config_dict):
+    """Convert TOML native types to formats expected by existing code.
+    
+    Handles backward compatibility by preserving native types while
+    handling any special conversions needed.
+    
+    :param config_dict: Dictionary with TOML native types
+    :returns: Dictionary with converted types for backward compatibility
+    """
+    if not isinstance(config_dict, dict):
+        return config_dict
+    
+    converted = {}
+    for key, value in config_dict.items():
+        # For now, preserve all native types
+        # Future conversions can be added here as needed
+        converted[key] = value
+    
+    return converted
