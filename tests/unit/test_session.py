@@ -376,6 +376,34 @@ class TestSessionConfigurationVars(BaseSessionTest):
         value = self.session.get_config_variable('region', methods=('env',))
         self.assertEqual(value, 'env-var')
 
+    def test_config_file_toml_env_var_set(self):
+        # Test that AWS_CONFIG_FILE_TOML environment variable is accessible
+        self.environ['AWS_CONFIG_FILE_TOML'] = '/path/to/config.toml'
+        self.assertEqual(
+            self.session.get_config_variable('config_file_toml'),
+            '/path/to/config.toml'
+        )
+
+    def test_config_file_toml_env_var_not_set(self):
+        # Test that config_file_toml returns None when env var is not set
+        self.environ.pop('AWS_CONFIG_FILE_TOML', None)
+        self.assertIsNone(
+            self.session.get_config_variable('config_file_toml')
+        )
+
+    def test_config_file_toml_session_integration(self):
+        # Test that config_file_toml integrates properly with session system
+        # Set environment variable
+        self.environ['AWS_CONFIG_FILE_TOML'] = '/custom/path/config.toml'
+        
+        # Should be accessible through get_config_variable
+        value = self.session.get_config_variable('config_file_toml')
+        self.assertEqual(value, '/custom/path/config.toml')
+        
+        # Should be accessible through methods parameter
+        value = self.session.get_config_variable('config_file_toml', methods=('env',))
+        self.assertEqual(value, '/custom/path/config.toml')
+
 
 class TestSessionPartitionFiles(BaseSessionTest):
     def test_lists_partitions_on_disk(self):
