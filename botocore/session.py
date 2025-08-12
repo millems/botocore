@@ -436,29 +436,47 @@ class Session:
         :rtype: dict
         """
         if self._config is None:
-            try:
-                config_file = self.get_config_variable('config_file')
-                self._config = botocore.configloader.load_config(config_file)
-            except ConfigNotFound:
-                self._config = {'profiles': {}}
-            try:
-                # Now we need to inject the profiles from the
-                # credentials file.  We don't actually need the values
-                # in the creds file, only the profile names so that we
-                # can validate the user is not referring to a nonexistent
-                # profile.
-                cred_file = self.get_config_variable('credentials_file')
-                cred_profiles = botocore.configloader.raw_config_parse(
-                    cred_file
+            # Check for TOML configuration first
+            toml_file = self.get_config_variable('config_file_toml')
+            ini_file = self.get_config_variable('config_file')
+            
+            # Log warning if both environment variables are set
+            if toml_file and ini_file:
+                logger.warning(
+                    "Both AWS_CONFIG_FILE_TOML and INI environment variables are set. "
+                    "Using TOML configuration."
                 )
-                for profile in cred_profiles:
-                    cred_vars = cred_profiles[profile]
-                    if profile not in self._config['profiles']:
-                        self._config['profiles'][profile] = cred_vars
-                    else:
-                        self._config['profiles'][profile].update(cred_vars)
+            
+            try:
+                toml_config_file = self.get_config_variable('config_file_toml')
+                self._config = botocore.configloader.load_toml_config(toml_config_file)
             except ConfigNotFound:
-                pass
+                # Fallback to existing INI logic
+                try:
+                    config_file = self.get_config_variable('config_file')
+                    self._config = botocore.configloader.load_config(config_file)
+                except ConfigNotFound:
+                    self._config = {'profiles': {}}
+                
+                # Credentials file merging logic (only for INI)
+                try:
+                    # Now we need to inject the profiles from the
+                    # credentials file.  We don't actually need the values
+                    # in the creds file, only the profile names so that we
+                    # can validate the user is not referring to a nonexistent
+                    # profile.
+                    cred_file = self.get_config_variable('credentials_file')
+                    cred_profiles = botocore.configloader.raw_config_parse(
+                        cred_file
+                    )
+                    for profile in cred_profiles:
+                        cred_vars = cred_profiles[profile]
+                        if profile not in self._config['profiles']:
+                            self._config['profiles'][profile] = cred_vars
+                        else:
+                            self._config['profiles'][profile].update(cred_vars)
+                except ConfigNotFound:
+                    pass
         return self._config
 
     def get_default_client_config(self):

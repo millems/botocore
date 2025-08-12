@@ -385,10 +385,11 @@ class TestSessionConfigurationVars(BaseSessionTest):
         )
 
     def test_config_file_toml_env_var_not_set(self):
-        # Test that config_file_toml returns None when env var is not set
+        # Test that config_file_toml returns default when env var is not set
         self.environ.pop('AWS_CONFIG_FILE_TOML', None)
-        self.assertIsNone(
-            self.session.get_config_variable('config_file_toml')
+        self.assertEqual(
+            self.session.get_config_variable('config_file_toml'),
+            '~/.aws/config.toml'
         )
 
     def test_config_file_toml_session_integration(self):
@@ -1087,3 +1088,178 @@ class TestInitializationHooks(BaseSessionTest):
 
         with self.assertRaises(ValueError):
             self.assertRaises(unregister_initializer(not_registered))
+
+    def test_full_config_toml_env_var_priority(self):
+        # Test that AWS_CONFIG_FILE_TOML takes priority
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+output = "json"
+'''
+        ini_content = '''
+[profile dev]
+region = us-east-1
+output = table
+'''
+        
+        with temporary_file('w') as toml_file:
+            toml_file.write(toml_content)
+            toml_file.flush()
+            
+            with temporary_file('w') as ini_file:
+                ini_file.write(ini_content)
+                ini_file.flush()
+                
+                session = botocore.session.Session()
+                session.set_config_variable('config_file_toml', toml_file.name)
+                session.set_config_variable('config_file', ini_file.name)
+                
+                config = session.full_config
+                
+                # Should use TOML file (us-west-2) not INI file (us-east-1)
+                self.assertEqual(config['profiles']['dev']['region'], 'us-west-2')
+                self.assertEqual(config['profiles']['dev']['output'], 'json')
+
+    def test_full_config_default_toml_discovery(self):
+        # Test that ~/.aws/config.toml is discovered when no env var is set
+        toml_content = '''
+[profile.test]
+region = "us-west-2"
+'''
+        
+        with temporary_file('w') as toml_file:
+            toml_file.write(toml_content)
+            toml_file.flush()
+            
+            session = botocore.session.Session()
+            
+            # Mock os.path.exists and os.path.expanduser to simulate default TOML file
+            def mock_expanduser(path):
+                if path == '~/.aws/config.toml':
+                    return toml_file.name
+                return path  # Return original path for other calls
+            
+            def mock_exists(path):
+                return path == toml_file.name
+            
+            with mock.patch('os.path.exists', side_effect=mock_exists):
+                with mock.patch('os.path.expanduser', side_effect=mock_expanduser):
+                    config = session.full_config
+                    
+                    # Should find and load the default TOML file
+                    self.assertEqual(config['profiles']['test']['region'], 'us-west-2')
+
+    def test_full_config_ini_fallback_behavior(self):
+        # Test that INI loading works when no TOML files are found
+        ini_content = '''
+[profile dev]
+region = us-east-1
+'''
+        
+        with temporary_file('w') as ini_file:
+            ini_file.write(ini_content)
+            ini_file.flush()
+            
+            session = botocore.session.Session()
+            session.set_config_variable('config_file', ini_file.name)
+            
+            # Mock to ensure no TOML files are found
+            with mock.patch('os.path.exists', return_value=False):
+                config = session.full_config
+                
+                # Should fall back to INI file
+                self.assertEqual(config['profiles']['dev']['region'], 'us-east-1')
+
+    def test_full_config_env_var_conflict_warning(self):
+        # Test that warning is logged when both env vars are set
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+'''
+        ini_content = '''
+[profile dev]
+region = us-east-1
+'''
+        
+        with temporary_file('w') as toml_file:
+            toml_file.write(toml_content)
+            toml_file.flush()
+            
+            with temporary_file('w') as ini_file:
+                ini_file.write(ini_content)
+                ini_file.flush()
+                
+                session = botocore.session.Session()
+                session.set_config_variable('config_file_toml', toml_file.name)
+                session.set_config_variable('config_file', ini_file.name)
+                
+                with mock.patch('botocore.session.logger') as mock_logger:
+                    config = session.full_config
+                    
+                    # Should log warning about both variables being set
+                    mock_logger.warning.assert_called_once()
+                    warning_call = mock_logger.warning.call_args[0][0]
+                    self.assertIn('AWS_CONFIG_FILE_TOML', warning_call)
+                    self.assertIn('TOML configuration', warning_call)
+                    
+                    # Should still use TOML file
+                    self.assertEqual(config['profiles']['dev']['region'], 'us-west-2')
+
+    def test_full_config_caching_behavior_toml(self):
+        # Test that TOML configuration is cached properly
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+'''
+        
+        with temporary_file('w') as toml_file:
+            toml_file.write(toml_content)
+            toml_file.flush()
+            
+            session = botocore.session.Session()
+            session.set_config_variable('config_file_toml', toml_file.name)
+            
+            # First access
+            config1 = session.full_config
+            
+            # Second access should return cached version
+            config2 = session.full_config
+            
+            # Should be the same object (cached)
+            self.assertIs(config1, config2)
+            self.assertEqual(config1['profiles']['dev']['region'], 'us-west-2')
+
+    def test_full_config_credentials_not_merged_with_toml(self):
+        # Test that credentials file is NOT merged with TOML config (per SEP)
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+output = "json"
+'''
+        creds_content = '''
+[dev]
+aws_access_key_id = AKIATEST
+aws_secret_access_key = secret
+'''
+        
+        with temporary_file('w') as toml_file:
+            toml_file.write(toml_content)
+            toml_file.flush()
+            
+            with temporary_file('w') as creds_file:
+                creds_file.write(creds_content)
+                creds_file.flush()
+                
+                session = botocore.session.Session()
+                session.set_config_variable('config_file_toml', toml_file.name)
+                session.set_config_variable('credentials_file', creds_file.name)
+                
+                config = session.full_config
+                
+                # Should have TOML config but NOT credentials
+                dev_profile = config['profiles']['dev']
+                self.assertEqual(dev_profile['region'], 'us-west-2')
+                self.assertEqual(dev_profile['output'], 'json')
+                # Credentials should NOT be merged with TOML
+                self.assertNotIn('aws_access_key_id', dev_profile)
+                self.assertNotIn('aws_secret_access_key', dev_profile)
