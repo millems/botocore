@@ -19,6 +19,17 @@ import sys
 
 import botocore.exceptions
 
+# TOML library imports with graceful fallback
+try:
+    if sys.version_info >= (3, 11):
+        import tomllib
+    else:
+        import tomli as tomllib
+    TOML_AVAILABLE = True
+except ImportError:
+    TOML_AVAILABLE = False
+    tomllib = None
+
 
 def multi_file_load_config(*filenames):
     """Load and combine multiple INI configs with profiles.
@@ -294,17 +305,12 @@ def raw_toml_parse(config_filename):
     :returns: A dict with the parsed TOML contents, normalized to match INI format
     :raises: ConfigNotFound, ConfigParseError
     """
-    # Python 3.11+ has built-in tomllib
-    if sys.version_info >= (3, 11):
-        import tomllib
-    else:
-        try:
-            import tomli as tomllib
-        except ImportError:
-            raise botocore.exceptions.ConfigParseError(
-                path=config_filename,
-                error="TOML support requires Python 3.11+ or tomli package"
-            )
+    if not TOML_AVAILABLE:
+        raise botocore.exceptions.ConfigParseError(
+            path=config_filename,
+            error="TOML support requires Python 3.11+ or tomli package. "
+                  "Install with: pip install tomli"
+        )
     
     if config_filename is None:
         raise botocore.exceptions.ConfigNotFound(path="None")

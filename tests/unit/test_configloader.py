@@ -602,7 +602,7 @@ array_val = ["a", "b", "c"]
         self.assertEqual(result['sigv4a_signing_region_set'], '')
 
     def test_raw_toml_parse_missing_library(self):
-        # Test that ConfigParseError is raised when tomli library is missing
+        # Test that ConfigParseError is raised when TOML library is unavailable
         toml_content = '''
 [profile.dev]
 region = "us-west-2"
@@ -610,17 +610,17 @@ region = "us-west-2"
         filename = self.create_toml_config_file('test.toml', toml_content)
         
         from botocore.configloader import raw_toml_parse
+        import botocore.configloader
         
-        # Mock Python version < 3.11 and missing tomli
-        with mock.patch('sys.version_info', (3, 9, 0)):
-            with mock.patch('builtins.__import__', side_effect=ImportError):
-                with self.assertRaises(botocore.exceptions.ConfigParseError) as cm:
-                    raw_toml_parse(filename)
-                
-                # Should include helpful message about Python version requirements
-                error_msg = cm.exception.kwargs['error']
-                self.assertIn('Python 3.11+', error_msg)
-                self.assertIn('tomli package', error_msg)
+        # Mock TOML_AVAILABLE to simulate missing library
+        with mock.patch.object(botocore.configloader, 'TOML_AVAILABLE', False):
+            with self.assertRaises(botocore.exceptions.ConfigParseError) as cm:
+                raw_toml_parse(filename)
+            
+            # Should include helpful message about Python version requirements
+            error_msg = cm.exception.kwargs['error']
+            self.assertIn('Python 3.11+', error_msg)
+            self.assertIn('tomli package', error_msg)
 
     def test_raw_toml_parse_file_path_expansion(self):
         # Test that file paths are properly expanded (expandvars, expanduser)
