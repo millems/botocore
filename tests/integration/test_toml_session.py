@@ -27,15 +27,8 @@ class TestTOMLSessionIntegration(BaseEnvVar):
         super().tearDown()
         shutil.rmtree(self.temp_dir, ignore_errors=True)
     
-    def create_toml_file(self, filename, content):
-        """Create a TOML file in the temp directory."""
-        full_path = os.path.join(self.temp_dir, filename)
-        with open(full_path, 'w') as f:
-            f.write(content)
-        return full_path
-    
-    def create_ini_file(self, filename, content):
-        """Create an INI file in the temp directory."""
+    def create_config_file(self, filename, content):
+        """Create a config file (TOML or INI) in the temp directory."""
         full_path = os.path.join(self.temp_dir, filename)
         with open(full_path, 'w') as f:
             f.write(content)
@@ -49,7 +42,7 @@ region = "us-west-2"
 output = "json"
 use_fips = true
 '''
-        toml_file = self.create_toml_file('config.toml', toml_content)
+        toml_file = self.create_config_file('config.toml', toml_content)
         
         # Set environment variable to point to TOML file
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
@@ -79,8 +72,8 @@ region = us-east-1
 source = ini
 '''
         
-        toml_file = self.create_toml_file('config.toml', toml_content)
-        ini_file = self.create_ini_file('config', ini_content)
+        toml_file = self.create_config_file('config.toml', toml_content)
+        ini_file = self.create_config_file('config', ini_content)
         
         # Set both environment variables
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
@@ -111,8 +104,8 @@ aws_access_key_id = AKIATEST
 aws_secret_access_key = secret
 '''
         
-        toml_file = self.create_toml_file('config.toml', toml_content)
-        creds_file = self.create_toml_file('credentials', credentials_content)
+        toml_file = self.create_config_file('config.toml', toml_content)
+        creds_file = self.create_config_file('credentials', credentials_content)
         
         # Set environment variables
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
@@ -145,7 +138,7 @@ signature_version = "s3v4"
 max_concurrent_requests = 20
 '''
         
-        toml_file = self.create_toml_file('config.toml', toml_content)
+        toml_file = self.create_config_file('config.toml', toml_content)
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
         
         session = botocore.session.Session()
@@ -174,8 +167,8 @@ region = "us-west-2"
 region = us-east-1
 '''
         
-        toml_file = self.create_toml_file('config.toml', toml_content)
-        ini_file = self.create_ini_file('config', ini_content)
+        toml_file = self.create_config_file('config.toml', toml_content)
+        ini_file = self.create_config_file('config', ini_content)
         
         # Set both environment variables
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
@@ -240,7 +233,7 @@ region = us-east-1
 output = json
 '''
         
-        ini_file = self.create_ini_file('config', ini_content)
+        ini_file = self.create_config_file('config', ini_content)
         
         # Set INI file but no TOML file
         self.environ['AWS_CONFIG_FILE'] = ini_file
@@ -280,7 +273,7 @@ signature_version = "s3v4"
 max_concurrent_requests = 20
 '''
         
-        toml_file = self.create_toml_file('complex.toml', toml_content)
+        toml_file = self.create_config_file('complex.toml', toml_content)
         self.environ['AWS_CONFIG_FILE_TOML'] = toml_file
         
         session = botocore.session.Session()

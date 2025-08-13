@@ -16,6 +16,7 @@ import os
 import shutil
 import tempfile
 
+import pytest
 import botocore.exceptions
 from botocore.configloader import (
     load_config,
@@ -496,65 +497,48 @@ array_val = ["a", "b", "c"]
         self.assertIsInstance(result['services'], dict)
         self.assertEqual(set(result['services'].keys()), {'s3'})
 
-    def test_normalize_toml_to_ini_types_array_conversion(self):
-        # Test array to string conversion
-        config = {
-            'sigv4a_signing_region_set': ['us-east-1', 'us-west-2'],
-            'other_array': ['a', 'b', 'c']
-        }
-        
+    def test_normalize_toml_to_ini_types(self):
+        """Test TOML to INI type normalization for various data types."""
         from botocore.configloader import _normalize_toml_to_ini_types
         
-        result = _normalize_toml_to_ini_types(config)
+        test_cases = [
+            # Array conversion
+            (
+                {'sigv4a_signing_region_set': ['us-east-1', 'us-west-2'], 'other_array': ['a', 'b', 'c']},
+                {'sigv4a_signing_region_set': 'us-east-1,us-west-2', 'other_array': 'a,b,c'},
+                "array_conversion"
+            ),
+            # Boolean conversion
+            (
+                {'use_dualstack_endpoint': True, 'use_fips': False},
+                {'use_dualstack_endpoint': 'true', 'use_fips': 'false'},
+                "boolean_conversion"
+            ),
+            # Integer conversion
+            (
+                {'duration_seconds': 3600, 'timeout': 30},
+                {'duration_seconds': '3600', 'timeout': '30'},
+                "integer_conversion"
+            ),
+            # String preservation
+            (
+                {'region': 'us-west-2', 'output': 'json'},
+                {'region': 'us-west-2', 'output': 'json'},
+                "string_preservation"
+            ),
+            # Empty array handling
+            (
+                {'sigv4a_signing_region_set': []},
+                {'sigv4a_signing_region_set': ''},
+                "empty_array_handling"
+            ),
+        ]
         
-        # Should convert arrays to comma-separated strings
-        self.assertEqual(result['sigv4a_signing_region_set'], 'us-east-1,us-west-2')
-        self.assertEqual(result['other_array'], 'a,b,c')
-
-    def test_normalize_toml_to_ini_types_boolean_conversion(self):
-        # Test that boolean types are converted to strings
-        config = {
-            'use_dualstack_endpoint': True,
-            'use_fips': False
-        }
-        
-        from botocore.configloader import _normalize_toml_to_ini_types
-        
-        result = _normalize_toml_to_ini_types(config)
-        
-        # Should convert booleans to string format
-        self.assertEqual(result['use_dualstack_endpoint'], 'true')
-        self.assertEqual(result['use_fips'], 'false')
-
-    def test_normalize_toml_to_ini_types_integer_conversion(self):
-        # Test that integer types are converted to strings
-        config = {
-            'duration_seconds': 3600,
-            'timeout': 30
-        }
-        
-        from botocore.configloader import _normalize_toml_to_ini_types
-        
-        result = _normalize_toml_to_ini_types(config)
-        
-        # Should convert integers to string format
-        self.assertEqual(result['duration_seconds'], '3600')
-        self.assertEqual(result['timeout'], '30')
-
-    def test_normalize_toml_to_ini_types_string_preservation(self):
-        # Test that string types are preserved
-        config = {
-            'region': 'us-west-2',
-            'output': 'json'
-        }
-        
-        from botocore.configloader import _normalize_toml_to_ini_types
-        
-        result = _normalize_toml_to_ini_types(config)
-        
-        # Should preserve string types
-        self.assertEqual(result['region'], 'us-west-2')
-        self.assertEqual(result['output'], 'json')
+        for input_data, expected_output, test_name in test_cases:
+            with self.subTest(test_case=test_name):
+                result = _normalize_toml_to_ini_types(input_data)
+                for key, expected_value in expected_output.items():
+                    self.assertEqual(result[key], expected_value)
 
     def test_normalize_toml_to_ini_types_nested_processing(self):
         # Test that nested dictionaries are processed recursively
@@ -587,19 +571,6 @@ array_val = ["a", "b", "c"]
         
         s3_service = result['services']['s3']
         self.assertEqual(s3_service['use_dualstack_endpoint'], 'false')
-
-    def test_normalize_toml_to_ini_types_empty_array_handling(self):
-        # Test that empty arrays are converted to empty strings
-        config = {
-            'sigv4a_signing_region_set': []
-        }
-        
-        from botocore.configloader import _normalize_toml_to_ini_types
-        
-        result = _normalize_toml_to_ini_types(config)
-        
-        # Should convert empty array to empty string
-        self.assertEqual(result['sigv4a_signing_region_set'], '')
 
     def test_raw_toml_parse_missing_library(self):
         # Test that ConfigParseError is raised when TOML library is unavailable
