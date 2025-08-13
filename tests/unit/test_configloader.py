@@ -601,6 +601,136 @@ array_val = ["a", "b", "c"]
         # Should convert empty array to empty string
         self.assertEqual(result['sigv4a_signing_region_set'], '')
 
+    def test_raw_toml_parse_missing_library(self):
+        # Test that ConfigParseError is raised when tomli library is missing
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+'''
+        filename = self.create_toml_config_file('test.toml', toml_content)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        # Mock Python version < 3.11 and missing tomli
+        with mock.patch('sys.version_info', (3, 9, 0)):
+            with mock.patch('builtins.__import__', side_effect=ImportError):
+                with self.assertRaises(botocore.exceptions.ConfigParseError) as cm:
+                    raw_toml_parse(filename)
+                
+                # Should include helpful message about Python version requirements
+                error_msg = cm.exception.kwargs['error']
+                self.assertIn('Python 3.11+', error_msg)
+                self.assertIn('tomli package', error_msg)
+
+    def test_raw_toml_parse_file_path_expansion(self):
+        # Test that file paths are properly expanded (expandvars, expanduser)
+        toml_content = '''
+[profile.test]
+region = "us-west-2"
+'''
+        filename = self.create_toml_config_file('path_test.toml', toml_content)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        # Test with environment variable expansion
+        with mock.patch.dict(os.environ, {'TEST_CONFIG': filename}):
+            result = raw_toml_parse('$TEST_CONFIG')
+            self.assertIn('profile', result)
+            self.assertEqual(result['profile']['test']['region'], 'us-west-2')
+        
+        # Test with user home expansion (mock expanduser)
+        with mock.patch('os.path.expanduser', return_value=filename):
+            with mock.patch('os.path.isfile', return_value=True):
+                result = raw_toml_parse('~/config.toml')
+                self.assertIn('profile', result)
+                self.assertEqual(result['profile']['test']['region'], 'us-west-2')
+
+    def test_raw_toml_parse_empty_file(self):
+        # Test parsing an empty TOML file
+        empty_toml = ''
+        filename = self.create_toml_config_file('empty.toml', empty_toml)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        result = raw_toml_parse(filename)
+        
+        # Should return empty structure but not crash
+        self.assertIsInstance(result, dict)
+
+    def test_raw_toml_parse_special_characters(self):
+        # Test parsing TOML with special characters and unicode
+        toml_content = '''
+[profile."special-name"]
+region = "us-west-2"
+description = "Test with special chars: éñ中文"
+
+[profile.unicode]
+name = "测试"
+emoji = "🚀"
+'''
+        filename = self.create_toml_config_file('special.toml', toml_content)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        result = raw_toml_parse(filename)
+        
+        # Should handle special characters correctly
+        self.assertIn('special-name', result['profile'])
+        self.assertEqual(result['profile']['special-name']['region'], 'us-west-2')
+        self.assertIn('éñ中文', result['profile']['special-name']['description'])
+        
+        self.assertIn('unicode', result['profile'])
+        self.assertEqual(result['profile']['unicode']['name'], '测试')
+        self.assertEqual(result['profile']['unicode']['emoji'], '🚀')
+
+    def test_raw_toml_parse_complex_nested_structure(self):
+        # Test parsing complex nested TOML structures
+        toml_content = '''
+[profile.dev]
+region = "us-west-2"
+sigv4a_signing_region_set = ["us-west-2", "us-east-1"]
+
+[profile.dev.s3]
+use_dualstack_endpoint = true
+max_bandwidth = 1000
+
+[sso-session.my-sso]
+sso_start_url = "https://example.com"
+sso_region = "us-east-1"
+
+[services.s3]
+max_concurrent_requests = 20
+signature_version = "s3v4"
+'''
+        filename = self.create_toml_config_file('complex.toml', toml_content)
+        
+        from botocore.configloader import raw_toml_parse
+        
+        result = raw_toml_parse(filename)
+        
+        # Verify complex structure is parsed correctly
+        self.assertIn('profile', result)
+        self.assertIn('sso-session', result)
+        self.assertIn('services', result)
+        
+        # Check nested profile structure
+        dev_profile = result['profile']['dev']
+        self.assertEqual(dev_profile['region'], 'us-west-2')
+        self.assertEqual(dev_profile['sigv4a_signing_region_set'], 'us-west-2,us-east-1')
+        
+        # Check nested s3 config (should be flattened in normalized output)
+        self.assertIn('s3', dev_profile)
+        self.assertEqual(dev_profile['s3']['use_dualstack_endpoint'], 'true')
+        self.assertEqual(dev_profile['s3']['max_bandwidth'], '1000')
+
+    def test_load_toml_config_with_none_filename(self):
+        # Test load_toml_config behavior with None filename (should raise ConfigNotFound)
+        from botocore.configloader import load_toml_config
+        
+        # TOML version raises ConfigNotFound for None filename (different from INI)
+        with self.assertRaises(botocore.exceptions.ConfigNotFound):
+            load_toml_config(None)
+
 
 if __name__ == "__main__":
     unittest.main()
