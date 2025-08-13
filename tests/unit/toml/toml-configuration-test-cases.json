@@ -1,0 +1,433 @@
+{
+  "description": "Test cases for TOML configuration file parsing and integration with existing INI configuration system. These tests verify file discovery, TOML parsing, data type handling, error conditions, and cross-platform compatibility.",
+  
+  "tests": [
+    {
+      "name": "Empty TOML file has no profiles",
+      "input": {
+        "tomlFile": ""
+      },
+      "output": {
+        "profiles": {},
+        "ssoSessions": {},
+        "services": {}
+      }
+    },
+    
+    {
+      "name": "Basic profile with string properties",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\noutput = \"json\""
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "output": "json"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Profile with boolean properties using native TOML types",
+      "input": {
+        "tomlFile": "[profile.dev]\nregion = \"us-west-2\"\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false"
+      },
+      "output": {
+        "profiles": {
+          "dev": {
+            "region": "us-west-2",
+            "use_dualstack_endpoint": true,
+            "use_fips_endpoint": false
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Profile with numeric properties using native TOML types",
+      "input": {
+        "tomlFile": "[profile.assume-role]\nrole_arn = \"arn:aws:iam::123456789012:role/ExampleRole\"\nsource_profile = \"default\"\nduration_seconds = 3600\nmetadata_service_timeout = 30"
+      },
+      "output": {
+        "profiles": {
+          "assume-role": {
+            "role_arn": "arn:aws:iam::123456789012:role/ExampleRole",
+            "source_profile": "default",
+            "duration_seconds": 3600,
+            "metadata_service_timeout": 30
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Profile with array property using native TOML array",
+      "input": {
+        "tomlFile": "[profile.multi-region]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = [\"us-east-1\", \"us-west-2\", \"eu-west-1\"]"
+      },
+      "output": {
+        "profiles": {
+          "multi-region": {
+            "region": "us-east-1",
+            "sigv4a_signing_region_set": ["us-east-1", "us-west-2", "eu-west-1"]
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Multiple profiles with mixed data types",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true\n\n[profile.dev]\nregion = \"us-west-2\"\naws_access_key_id = \"AKIAIOSFODNN7EXAMPLE\"\naws_secret_access_key = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"\nduration_seconds = 7200"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          },
+          "dev": {
+            "region": "us-west-2",
+            "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+            "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "duration_seconds": 7200
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "SSO session configuration",
+      "input": {
+        "tomlFile": "[sso-session.my-sso]\nsso_start_url = \"https://my-sso-portal.awsapps.com/start\"\nsso_region = \"us-east-1\"\nsso_registration_scopes = [\"sso:account:access\"]"
+      },
+      "output": {
+        "ssoSessions": {
+          "my-sso": {
+            "sso_start_url": "https://my-sso-portal.awsapps.com/start",
+            "sso_region": "us-east-1",
+            "sso_registration_scopes": ["sso:account:access"]
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Services configuration",
+      "input": {
+        "tomlFile": "[services.s3]\nendpoint_url = \"https://s3.us-west-2.amazonaws.com\"\nmax_concurrent_requests = 20\n\n[services.dynamodb]\nendpoint_url = \"https://dynamodb.us-east-1.amazonaws.com\""
+      },
+      "output": {
+        "services": {
+          "s3": {
+            "endpoint_url": "https://s3.us-west-2.amazonaws.com",
+            "max_concurrent_requests": 20
+          },
+          "dynamodb": {
+            "endpoint_url": "https://dynamodb.us-east-1.amazonaws.com"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Complete configuration with all section types",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true\n\n[profile.dev]\nregion = \"us-west-2\"\nsso_session = \"my-sso\"\nsso_account_id = \"123456789012\"\nsso_role_name = \"DeveloperRole\"\n\n[sso-session.my-sso]\nsso_start_url = \"https://my-sso-portal.awsapps.com/start\"\nsso_region = \"us-east-1\"\n\n[services.s3]\nendpoint_url = \"https://s3.us-west-2.amazonaws.com\""
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          },
+          "dev": {
+            "region": "us-west-2",
+            "sso_session": "my-sso",
+            "sso_account_id": "123456789012",
+            "sso_role_name": "DeveloperRole"
+          }
+        },
+        "ssoSessions": {
+          "my-sso": {
+            "sso_start_url": "https://my-sso-portal.awsapps.com/start",
+            "sso_region": "us-east-1"
+          }
+        },
+        "services": {
+          "s3": {
+            "endpoint_url": "https://s3.us-west-2.amazonaws.com"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "TOML file takes precedence over INI files",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true",
+        "configFile": "[profile default]\nregion = us-west-2\nuse_dualstack_endpoint = false",
+        "credentialsFile": "[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "TOML file with AWS_CONFIG_FILE_TOML environment variable",
+      "input": {
+        "environmentVariables": {
+          "AWS_CONFIG_FILE_TOML": "/custom/path/config.toml"
+        },
+        "tomlFile": "[profile.custom]\nregion = \"eu-west-1\"",
+        "configFile": "[profile default]\nregion = us-east-1"
+      },
+      "output": {
+        "profiles": {
+          "custom": {
+            "region": "eu-west-1"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Environment variable conflict warning - both TOML and INI env vars set",
+      "input": {
+        "environmentVariables": {
+          "AWS_CONFIG_FILE_TOML": "/path/to/config.toml",
+          "AWS_CONFIG_FILE": "/path/to/config"
+        },
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"",
+        "configFile": "[profile default]\nregion = us-west-2"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1"
+          }
+        },
+        "warnings": ["Both AWS_CONFIG_FILE_TOML and INI environment variables are set. Using TOML configuration."]
+      }
+    },
+    
+    {
+      "name": "Unknown properties are ignored silently",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nunknown_property = \"some_value\"\nuse_dualstack_endpoint = true"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Invalid TOML syntax causes parse error",
+      "input": {
+        "tomlFile": "[profile.invalid\nregion = \"us-east-1\""
+      },
+      "output": {
+        "errorContaining": "TOML parsing error"
+      }
+    },
+    
+    {
+      "name": "Invalid boolean value causes parse error",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = \"maybe\""
+      },
+      "output": {
+        "errorContaining": "Expected boolean value"
+      }
+    },
+    
+    {
+      "name": "Invalid numeric value causes parse error",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nduration_seconds = \"not-a-number\""
+      },
+      "output": {
+        "errorContaining": "Expected integer value"
+      }
+    },
+    
+    {
+      "name": "Invalid array value causes parse error",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = \"us-east-1,us-west-2\""
+      },
+      "output": {
+        "errorContaining": "Expected array value"
+      }
+    },
+    
+    {
+      "name": "Empty array is valid",
+      "input": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = []"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "sigv4a_signing_region_set": []
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "All boolean properties with native TOML types",
+      "input": {
+        "tomlFile": "[profile.all-booleans]\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true\ns3_disable_express_session_auth = false\nec2_metadata_v1_disabled = true\ndisable_request_compression = false"
+      },
+      "output": {
+        "profiles": {
+          "all-booleans": {
+            "use_dualstack_endpoint": true,
+            "use_fips_endpoint": false,
+            "aws_endpoint_discovery_enabled": true,
+            "s3_disable_express_session_auth": false,
+            "ec2_metadata_v1_disabled": true,
+            "disable_request_compression": false
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "All numeric properties with native TOML types",
+      "input": {
+        "tomlFile": "[profile.all-numbers]\nduration_seconds = 3600\nmetadata_service_timeout = 30\nrequest_min_compression_size_bytes = 10240"
+      },
+      "output": {
+        "profiles": {
+          "all-numbers": {
+            "duration_seconds": 3600,
+            "metadata_service_timeout": 30,
+            "request_min_compression_size_bytes": 10240
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "TOML comments are supported",
+      "input": {
+        "tomlFile": "# This is a comment\n[profile.default]\nregion = \"us-east-1\"  # Inline comment\n# Another comment\nuse_dualstack_endpoint = true"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Unicode characters in TOML values",
+      "input": {
+        "tomlFile": "[profile.unicode]\nregion = \"us-east-1\"\nsdk_ua_app_id = \"MyApp™\""
+      },
+      "output": {
+        "profiles": {
+          "unicode": {
+            "region": "us-east-1",
+            "sdk_ua_app_id": "MyApp™"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Windows-style line endings are supported",
+      "input": {
+        "tomlFile": "[profile.default]\r\nregion = \"us-east-1\"\r\nuse_dualstack_endpoint = true"
+      },
+      "output": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "AWS_CONFIG_FILE_TOML with invalid file fails without INI fallback",
+      "input": {
+        "environmentVariables": {
+          "AWS_CONFIG_FILE_TOML": "/path/to/invalid.toml"
+        },
+        "tomlFile": "[profile.invalid\nregion = \"us-east-1\"",
+        "configFile": "[profile default]\nregion = us-west-2"
+      },
+      "output": {
+        "errorContaining": "TOML parsing error"
+      }
+    },
+    
+    {
+      "name": "AWS_CONFIG_FILE_TOML with missing file fails without INI fallback",
+      "input": {
+        "environmentVariables": {
+          "AWS_CONFIG_FILE_TOML": "/nonexistent/config.toml"
+        },
+        "configFile": "[profile default]\nregion = us-east-1"
+      },
+      "output": {
+        "errorContaining": "File not found"
+      }
+    },
+    
+    {
+      "name": "Profile names with special characters",
+      "input": {
+        "tomlFile": "[profile.\"my-profile-123\"]\nregion = \"us-east-1\"\n\n[profile.\"profile.with.dots\"]\nregion = \"us-west-2\""
+      },
+      "output": {
+        "profiles": {
+          "my-profile-123": {
+            "region": "us-east-1"
+          },
+          "profile.with.dots": {
+            "region": "us-west-2"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Credentials properties in profile",
+      "input": {
+        "tomlFile": "[profile.creds]\naws_access_key_id = \"AKIAIOSFODNN7EXAMPLE\"\naws_secret_access_key = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"\naws_session_token = \"AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4OlgkBN9bkUDNCJiBeb/AXlzBBko7b15fjrBs2+cTQtpZ3CYWFXG8C5zqx37wnOE49mRl/+OtkIKGO7fAE\"\nregion = \"us-east-1\""
+      },
+      "output": {
+        "profiles": {
+          "creds": {
+            "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+            "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "aws_session_token": "AQoEXAMPLEH4aoAH0gNCAPyJxz4BlCFFxWNE1OPTgk5TthT+FvwqnKwRcOIfrRh3c/LTo6UDdyJwOOvEVPvLXCrrrUtdnniCEXAMPLE/IvU1dYUg2RVAJBanLiHb4IgRmpRV3zrkuWJOgQs8IZZaIv2BXIa2R4OlgkBN9bkUDNCJiBeb/AXlzBBko7b15fjrBs2+cTQtpZ3CYWFXG8C5zqx37wnOE49mRl/+OtkIKGO7fAE",
+            "region": "us-east-1"
+          }
+        }
+      }
+    }
+  ]
+}

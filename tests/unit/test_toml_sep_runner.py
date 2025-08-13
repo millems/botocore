@@ -16,7 +16,7 @@ def load_test_cases():
     """Load test cases from SEP JSON file."""
     test_file = os.path.join(
         os.path.dirname(__file__), 
-        '../../.amazonq/rules/toml-sep/toml-configuration-test-cases.json'
+        'toml/toml-configuration-test-cases.json'
     )
     with open(test_file) as f:
         data = json.load(f)

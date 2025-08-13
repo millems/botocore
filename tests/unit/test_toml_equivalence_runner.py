@@ -15,7 +15,7 @@ def load_equivalence_test_cases():
     """Load equivalence test cases from SEP JSON file."""
     test_file = os.path.join(
         os.path.dirname(__file__), 
-        '../../.amazonq/rules/toml-sep/toml-ini-equivalence-tests.json'
+        'toml/toml-ini-equivalence-tests.json'
     )
     with open(test_file) as f:
         data = json.load(f)

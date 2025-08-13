@@ -1,0 +1,338 @@
+{
+  "description": "Equivalence tests that verify INI and TOML configuration files produce identical parsed configuration structures. These tests ensure backward compatibility and validate that TOML native data types are correctly interpreted to match INI string-based values.",
+  
+  "tests": [
+    {
+      "name": "Basic profile with string properties - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile default]\nregion = us-east-1\noutput = json"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\noutput = \"json\""
+      },
+      "expectedOutput": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "output": "json"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Boolean properties - INI string vs TOML native boolean equivalence",
+      "iniInput": {
+        "configFile": "[profile default]\nregion = us-east-1\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true,
+            "use_fips_endpoint": false,
+            "aws_endpoint_discovery_enabled": true
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Numeric properties - INI string vs TOML native integer equivalence",
+      "iniInput": {
+        "configFile": "[profile assume-role]\nrole_arn = arn:aws:iam::123456789012:role/ExampleRole\nsource_profile = default\nduration_seconds = 3600\nmetadata_service_timeout = 30"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.assume-role]\nrole_arn = \"arn:aws:iam::123456789012:role/ExampleRole\"\nsource_profile = \"default\"\nduration_seconds = 3600\nmetadata_service_timeout = 30"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "assume-role": {
+            "role_arn": "arn:aws:iam::123456789012:role/ExampleRole",
+            "source_profile": "default",
+            "duration_seconds": 3600,
+            "metadata_service_timeout": 30
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Array property - INI comma-separated vs TOML native array equivalence",
+      "iniInput": {
+        "configFile": "[profile multi-region]\nregion = us-east-1\nsigv4a_signing_region_set = us-east-1,us-west-2,eu-west-1"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.multi-region]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = [\"us-east-1\", \"us-west-2\", \"eu-west-1\"]"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "multi-region": {
+            "region": "us-east-1",
+            "sigv4a_signing_region_set": ["us-east-1", "us-west-2", "eu-west-1"]
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Array property with whitespace - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile whitespace-test]\nregion = us-east-1\nsigv4a_signing_region_set = us-east-1, us-west-2 , eu-west-1"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.whitespace-test]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = [\"us-east-1\", \"us-west-2\", \"eu-west-1\"]"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "whitespace-test": {
+            "region": "us-east-1",
+            "sigv4a_signing_region_set": ["us-east-1", "us-west-2", "eu-west-1"]
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Empty array - INI empty string vs TOML empty array equivalence",
+      "iniInput": {
+        "configFile": "[profile empty-array]\nregion = us-east-1\nsigv4a_signing_region_set ="
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.empty-array]\nregion = \"us-east-1\"\nsigv4a_signing_region_set = []"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "empty-array": {
+            "region": "us-east-1",
+            "sigv4a_signing_region_set": []
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "All boolean properties - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile all-booleans]\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true\ns3_disable_express_session_auth = false\nec2_metadata_v1_disabled = true\ndisable_request_compression = false"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.all-booleans]\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true\ns3_disable_express_session_auth = false\nec2_metadata_v1_disabled = true\ndisable_request_compression = false"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "all-booleans": {
+            "use_dualstack_endpoint": true,
+            "use_fips_endpoint": false,
+            "aws_endpoint_discovery_enabled": true,
+            "s3_disable_express_session_auth": false,
+            "ec2_metadata_v1_disabled": true,
+            "disable_request_compression": false
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "All numeric properties - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile all-numbers]\nduration_seconds = 3600\nmetadata_service_timeout = 30\nrequest_min_compression_size_bytes = 10240"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.all-numbers]\nduration_seconds = 3600\nmetadata_service_timeout = 30\nrequest_min_compression_size_bytes = 10240"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "all-numbers": {
+            "duration_seconds": 3600,
+            "metadata_service_timeout": 30,
+            "request_min_compression_size_bytes": 10240
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "SSO session configuration - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[sso-session my-sso]\nsso_start_url = https://my-sso-portal.awsapps.com/start\nsso_region = us-east-1"
+      },
+      "tomlInput": {
+        "tomlFile": "[sso-session.my-sso]\nsso_start_url = \"https://my-sso-portal.awsapps.com/start\"\nsso_region = \"us-east-1\""
+      },
+      "expectedOutput": {
+        "ssoSessions": {
+          "my-sso": {
+            "sso_start_url": "https://my-sso-portal.awsapps.com/start",
+            "sso_region": "us-east-1"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Services configuration - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[services s3]\nendpoint_url = https://s3.us-west-2.amazonaws.com\nmax_concurrent_requests = 20"
+      },
+      "tomlInput": {
+        "tomlFile": "[services.s3]\nendpoint_url = \"https://s3.us-west-2.amazonaws.com\"\nmax_concurrent_requests = 20"
+      },
+      "expectedOutput": {
+        "services": {
+          "s3": {
+            "endpoint_url": "https://s3.us-west-2.amazonaws.com",
+            "max_concurrent_requests": 20
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Complete configuration with all sections - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile default]\nregion = us-east-1\nuse_dualstack_endpoint = true\n\n[profile dev]\nregion = us-west-2\nsso_session = my-sso\nsso_account_id = 123456789012\nsso_role_name = DeveloperRole\nduration_seconds = 7200\n\n[sso-session my-sso]\nsso_start_url = https://my-sso-portal.awsapps.com/start\nsso_region = us-east-1\n\n[services s3]\nendpoint_url = https://s3.us-west-2.amazonaws.com"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true\n\n[profile.dev]\nregion = \"us-west-2\"\nsso_session = \"my-sso\"\nsso_account_id = \"123456789012\"\nsso_role_name = \"DeveloperRole\"\nduration_seconds = 7200\n\n[sso-session.my-sso]\nsso_start_url = \"https://my-sso-portal.awsapps.com/start\"\nsso_region = \"us-east-1\"\n\n[services.s3]\nendpoint_url = \"https://s3.us-west-2.amazonaws.com\""
+      },
+      "expectedOutput": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          },
+          "dev": {
+            "region": "us-west-2",
+            "sso_session": "my-sso",
+            "sso_account_id": "123456789012",
+            "sso_role_name": "DeveloperRole",
+            "duration_seconds": 7200
+          }
+        },
+        "ssoSessions": {
+          "my-sso": {
+            "sso_start_url": "https://my-sso-portal.awsapps.com/start",
+            "sso_region": "us-east-1"
+          }
+        },
+        "services": {
+          "s3": {
+            "endpoint_url": "https://s3.us-west-2.amazonaws.com"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Credentials in profile - INI vs TOML equivalence",
+      "iniInput": {
+        "credentialsFile": "[default]\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\naws_secret_access_key = wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+        "configFile": "[profile default]\nregion = us-east-1"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.default]\naws_access_key_id = \"AKIAIOSFODNN7EXAMPLE\"\naws_secret_access_key = \"wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY\"\nregion = \"us-east-1\""
+      },
+      "expectedOutput": {
+        "profiles": {
+          "default": {
+            "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+            "aws_secret_access_key": "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY",
+            "region": "us-east-1"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Mixed data types in single profile - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile mixed]\nregion = us-east-1\naws_access_key_id = AKIAIOSFODNN7EXAMPLE\nuse_dualstack_endpoint = true\nduration_seconds = 3600\nsigv4a_signing_region_set = us-east-1,us-west-2\noutput = json"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.mixed]\nregion = \"us-east-1\"\naws_access_key_id = \"AKIAIOSFODNN7EXAMPLE\"\nuse_dualstack_endpoint = true\nduration_seconds = 3600\nsigv4a_signing_region_set = [\"us-east-1\", \"us-west-2\"]\noutput = \"json\""
+      },
+      "expectedOutput": {
+        "profiles": {
+          "mixed": {
+            "region": "us-east-1",
+            "aws_access_key_id": "AKIAIOSFODNN7EXAMPLE",
+            "use_dualstack_endpoint": true,
+            "duration_seconds": 3600,
+            "sigv4a_signing_region_set": ["us-east-1", "us-west-2"],
+            "output": "json"
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Multiple profiles with different data types - INI vs TOML equivalence",
+      "iniInput": {
+        "configFile": "[profile default]\nregion = us-east-1\nuse_dualstack_endpoint = true\n\n[profile assume-role]\nrole_arn = arn:aws:iam::123456789012:role/ExampleRole\nsource_profile = default\nduration_seconds = 3600\n\n[profile multi-region]\nregion = us-west-2\nsigv4a_signing_region_set = us-east-1,us-west-2,eu-west-1"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.default]\nregion = \"us-east-1\"\nuse_dualstack_endpoint = true\n\n[profile.assume-role]\nrole_arn = \"arn:aws:iam::123456789012:role/ExampleRole\"\nsource_profile = \"default\"\nduration_seconds = 3600\n\n[profile.multi-region]\nregion = \"us-west-2\"\nsigv4a_signing_region_set = [\"us-east-1\", \"us-west-2\", \"eu-west-1\"]"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "default": {
+            "region": "us-east-1",
+            "use_dualstack_endpoint": true
+          },
+          "assume-role": {
+            "role_arn": "arn:aws:iam::123456789012:role/ExampleRole",
+            "source_profile": "default",
+            "duration_seconds": 3600
+          },
+          "multi-region": {
+            "region": "us-west-2",
+            "sigv4a_signing_region_set": ["us-east-1", "us-west-2", "eu-west-1"]
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Boolean edge cases - INI string variations vs TOML native boolean",
+      "iniInput": {
+        "configFile": "[profile bool-variations]\nuse_dualstack_endpoint = True\nuse_fips_endpoint = FALSE\naws_endpoint_discovery_enabled = true\ns3_disable_express_session_auth = false"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.bool-variations]\nuse_dualstack_endpoint = true\nuse_fips_endpoint = false\naws_endpoint_discovery_enabled = true\ns3_disable_express_session_auth = false"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "bool-variations": {
+            "use_dualstack_endpoint": true,
+            "use_fips_endpoint": false,
+            "aws_endpoint_discovery_enabled": true,
+            "s3_disable_express_session_auth": false
+          }
+        }
+      }
+    },
+    
+    {
+      "name": "Numeric edge cases - INI string numbers vs TOML native integers",
+      "iniInput": {
+        "configFile": "[profile numeric-edge]\nduration_seconds = 0\nmetadata_service_timeout = 1\nrequest_min_compression_size_bytes = 10485760"
+      },
+      "tomlInput": {
+        "tomlFile": "[profile.numeric-edge]\nduration_seconds = 0\nmetadata_service_timeout = 1\nrequest_min_compression_size_bytes = 10485760"
+      },
+      "expectedOutput": {
+        "profiles": {
+          "numeric-edge": {
+            "duration_seconds": 0,
+            "metadata_service_timeout": 1,
+            "request_min_compression_size_bytes": 10485760
+          }
+        }
+      }
+    }
+  ]
+}
