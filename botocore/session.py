@@ -440,8 +440,13 @@ class Session:
             toml_file = self.get_config_variable('config_file_toml')
             ini_file = self.get_config_variable('config_file')
             
-            # Log warning if both environment variables are set
-            if toml_file and ini_file:
+            # Log warning if both TOML and INI config files are specified
+            # Only warn if TOML file is explicitly set (via env var or session variable)
+            toml_explicitly_set = (
+                os.environ.get('AWS_CONFIG_FILE_TOML') or
+                self._session_instance_vars.get('config_file_toml') is not None
+            )
+            if toml_explicitly_set and ini_file:
                 logger.warning(
                     "Both AWS_CONFIG_FILE_TOML and INI environment variables are set. "
                     "Using TOML configuration."
