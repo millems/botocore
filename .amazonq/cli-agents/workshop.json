@@ -1,0 +1,59 @@
+{
+  "name": "workshop",
+  "description": "This is an agent used for the gen-ai workshop",
+  "prompt": null,
+  "tools": [
+    "@builtin",
+    "@amzn-mcp/genai_poweruser_agent_script_list",
+    "@amzn-mcp/genai_poweruser_agent_script_get",
+    "@amzn-mcp/genai_poweruser_agent_script_search",
+    "@amzn-mcp/eureka_web_search",
+    "@builder-mcp/ReadInternalWebsites",
+    "@cerebro-mcp"
+  ],
+  "toolAliases": {},
+  "allowedTools": [
+    "fs_read",
+    "@amzn-mcp/genai_poweruser_agent_script_list",
+    "@amzn-mcp/genai_poweruser_agent_script_get",
+    "@amzn-mcp/genai_poweruser_agent_script_search",
+    "@amzn-mcp/eureka_web_search",
+    "@builder-mcp/ReadInternalWebsites",
+    "@cerebro-mcp"
+  ],
+  "resources": [
+    "file://.amazonq/rules/**/*.md",
+    "file://AmazonQ.md"
+  ],
+  "hooks": {
+    "agentSpawn": [
+      {
+        "command": "echo -n 'Current Working Directory: ' && pwd"
+      }
+    ],
+    "userPromptSubmit": [
+      {
+        "command": "echo 'Current Git Status: ' && git status"
+      },
+      {
+        "command": "echo -n 'Current Time: ' && date"
+      }
+    ]
+  },
+  "toolsSettings": {},
+  "mcpServers" : {
+    "amzn-mcp" : {
+      "command" : "amzn-mcp",
+      "args" : [ ]
+    },
+    "builder-mcp" : {
+      "command" : "builder-mcp",
+      "args" : [ ]
+    },
+    "cerebro-mcp": {
+      "command": "amzn-code-cerebro-mcp",
+      "args": ["--stdio"],
+      "env": {}
+    }
+  }
+}
